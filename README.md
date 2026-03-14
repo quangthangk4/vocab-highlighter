@@ -125,6 +125,12 @@ Trong trang Settings → tab **Backup & Restore**:
 
 ## 📋 Changelog
 
+### v4.0.0
+- Thêm `Ctrl + Left-click` để nhập / sửa nghĩa của từ
+- Tooltip hiển thị nghĩa (nếu có) ngay phía trên phiên âm IPA
+
+
+
 ### v3.0.0
 - Thêm `Ctrl + Chuột phải` để xóa từ nhanh ngay khi đang đọc
 

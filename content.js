@@ -1,9 +1,11 @@
 /**
- * content.js — Content Script v3
- * Changes from v2:
- *  - IPA tooltip shows both US 🇺🇸 and UK 🇬🇧
- *  - Tooltip has "Remove from vocabulary" button
- *  - Tooltip width respects tooltipWidth setting
+ * content.js — Content Script v4
+ *
+ * v4 additions:
+ *  - Ctrl + Left-click on highlighted word → open meaning popup
+ *  - Tooltip shows meaning if available
+ * v3 additions:
+ *  - Ctrl + Right-click on highlighted word → removes it from vocabulary
  */
 
 (() => {
@@ -14,7 +16,9 @@
   const HIGHLIGHT_CLASS = 'vocab-highlight';
   const TOOLTIP_ID      = 'vocab-hl-tooltip';
   const SEL_BTN_ID      = 'vocab-sel-btn';
-  const DYN_STYLE_ID    = 'vocab-hl-dynamic-style';
+  const DYN_STYLE_ID     = 'vocab-hl-dynamic-style';
+  const MEANINGS_KEY     = 'vocabMeanings';    // { word: "nghĩa" }
+  const MEANING_POPUP_ID = 'vocab-meaning-popup';
 
   const SKIP_TAGS = new Set([
     'SCRIPT','STYLE','TEXTAREA','INPUT','SELECT','BUTTON',
@@ -175,10 +179,21 @@
     }
   }
 
-  function buildTooltipHTML(word, us, uk) {
+  function buildTooltipHTML(word, us, uk, meaning = '') {
     const wordRow =
       `<div style="opacity:0.6;font-size:11px;letter-spacing:0.06em;` +
       `text-transform:uppercase;margin-bottom:6px;color:#94a3b8">📖 ${word}</div>`;
+
+    const meaningRow = meaning
+      ? `<div style="` +
+          `margin-bottom:8px;padding:7px 10px;` +
+          `background:rgba(253,224,71,0.08);` +
+          `border-left:3px solid #fde047;` +
+          `border-radius:0 6px 6px 0;` +
+          `font-size:13px;color:#f1f5f9;font-family:system-ui,sans-serif;` +
+          `line-height:1.5` +
+        `">${meaning}</div>`
+      : '';
 
     function accentBlock(flag, label, ipa) {
       if (!ipa) return '';
@@ -205,10 +220,10 @@
           `background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);` +
           `border-radius:6px;padding:4px 10px;font-size:11px;font-family:system-ui,sans-serif;` +
           `font-weight:600;cursor:pointer;width:100%;transition:background 0.15s ease` +
-        `">🗑 Remove from vocabulary</button>` +
+        `">🗑 REMOVE (ctrl + right click)</button>` +
       `</div>`;
 
-    return wordRow + ipaSection + deleteRow;
+    return wordRow + meaningRow + ipaSection + deleteRow;
   }
 
   // ─── Tooltip ──────────────────────────────────────────────────────────────────
@@ -255,10 +270,14 @@
       positionTooltip(tooltip, e);
       tooltip.style.display = 'block';
 
-      const { us, uk } = await fetchIPA(word);
+      const [{ us, uk }, meaningsResult] = await Promise.all([
+        fetchIPA(word),
+        chrome.storage.sync.get(MEANINGS_KEY),
+      ]);
       if (currentTarget !== el) return;
 
-      tooltip.innerHTML           = buildTooltipHTML(word, us, uk);
+      const meanings = meaningsResult[MEANINGS_KEY] || {};
+      tooltip.innerHTML = buildTooltipHTML(word, us, uk, meanings[word] || '');
       tooltip.style.pointerEvents = 'auto';
 
       // Wire delete button
@@ -429,6 +448,172 @@
     window.addEventListener('scroll', () => { btn.style.display = 'none'; }, { passive: true });
   }
 
+  // ─── Ctrl + Right-click to Remove Word ───────────────────────────────────────
+  //
+  // Ctrl + right-click on any highlighted word → remove from vocabulary.
+  // Normal right-click (no Ctrl) is untouched so the browser/extension context
+  // menu still works as usual.
+
+  document.addEventListener('contextmenu', async (e) => {
+    if (!e.ctrlKey) return;                         // Only act when Ctrl is held
+
+    const el = e.target.closest?.('.' + HIGHLIGHT_CLASS);
+    if (!el) return;                                // Not on a highlight → ignore
+
+    e.preventDefault();                             // Suppress the context menu popup
+    e.stopPropagation();
+
+    const word = el.dataset.vocab || el.textContent.toLowerCase();
+
+    // Brief red flash so the user sees which word is being removed
+    el.style.outline       = '2px solid #ef4444';
+    el.style.outlineOffset = '1px';
+    setTimeout(() => {
+      el.style.outline       = '';
+      el.style.outlineOffset = '';
+    }, 300);
+
+    await removeWord(word);
+  }, true);   // capture phase — intercepts before any site listener
+
+  // ─── Meaning Popup (Ctrl + Left-click on highlighted word) ───────────────────
+
+  function setupMeaningPopup() {
+    document.addEventListener('click', async (e) => {
+      if (!e.ctrlKey) return;
+
+      const el = e.target.closest?.('.' + HIGHLIGHT_CLASS);
+      if (!el) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const word = el.dataset.vocab || el.textContent.toLowerCase();
+
+      const stored   = await chrome.storage.sync.get(MEANINGS_KEY);
+      const meanings = stored[MEANINGS_KEY] || {};
+      const existing = meanings[word] || '';
+
+      showMeaningPopup(word, existing, el);
+    }, true);
+  }
+
+  function showMeaningPopup(word, existingMeaning, anchorEl) {
+    document.getElementById(MEANING_POPUP_ID)?.remove();
+
+    const popup = document.createElement('div');
+    popup.id = MEANING_POPUP_ID;
+
+    Object.assign(popup.style, {
+      position     : 'fixed',
+      zIndex       : '2147483647',
+      background   : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+      border       : '1px solid rgba(253,224,71,0.35)',
+      borderRadius : '12px',
+      padding      : '14px 16px',
+      boxShadow    : '0 8px 32px rgba(0,0,0,0.55)',
+      fontFamily   : 'system-ui, sans-serif',
+      color        : '#f1f5f9',
+      width        : '280px',
+      pointerEvents: 'auto',
+    });
+
+    popup.innerHTML = `
+      <div style="font-size:11px;opacity:0.55;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:10px;color:#94a3b8">
+        ✏️ Nghĩa của "<strong style="color:#fde047">${word}</strong>"
+      </div>
+      <textarea id="vocab-meaning-input" placeholder="Nhập nghĩa của từ… (bỏ trống để xoá)" rows="3" style="
+        width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);
+        border-radius:8px;color:#f1f5f9;font-family:inherit;font-size:13px;
+        padding:8px 10px;resize:none;outline:none;line-height:1.5;
+        transition:border-color 0.15s ease;box-sizing:border-box;
+      ">${existingMeaning}</textarea>
+      <div style="font-size:11px;opacity:0.4;margin-top:5px;font-family:inherit">
+        Ctrl+Enter để lưu · Esc để huỷ
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+        <button id="vocab-meaning-cancel" style="
+          background:transparent;border:1px solid rgba(255,255,255,0.15);color:#94a3b8;
+          border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;
+          cursor:pointer;font-family:inherit;transition:background 0.12s ease;
+        ">Huỷ</button>
+        <button id="vocab-meaning-submit" style="
+          background:#fde047;color:#0f172a;border:none;
+          border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;
+          cursor:pointer;font-family:inherit;transition:background 0.12s ease;
+        ">Lưu</button>
+      </div>
+    `;
+
+    document.body.appendChild(popup);
+
+    // Position below the anchor element
+    const rect   = anchorEl.getBoundingClientRect();
+    const popupW = 280;
+    const x = Math.min(rect.left, window.innerWidth - popupW - 12);
+    const y = Math.min(rect.bottom + 8, window.innerHeight - 185);
+    popup.style.left = `${Math.max(8, x)}px`;
+    popup.style.top  = `${y}px`;
+
+    const textarea = popup.querySelector('#vocab-meaning-input');
+    textarea.focus();
+    textarea.select();
+
+    textarea.addEventListener('focus', () => {
+      textarea.style.borderColor = 'rgba(253,224,71,0.5)';
+    });
+    textarea.addEventListener('blur', () => {
+      textarea.style.borderColor = 'rgba(255,255,255,0.15)';
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); submitMeaning(); }
+      if (e.key === 'Escape') popup.remove();
+    });
+
+    async function submitMeaning() {
+      const value    = textarea.value.trim();
+      const stored   = await chrome.storage.sync.get(MEANINGS_KEY);
+      const meanings = stored[MEANINGS_KEY] || {};
+
+      if (value) {
+        meanings[word] = value;
+      } else {
+        delete meanings[word];
+      }
+
+      await chrome.storage.sync.set({ [MEANINGS_KEY]: meanings });
+      popup.remove();
+
+      showSaveBanner(
+        value ? `Đã lưu nghĩa: "${word}"` : `Đã xoá nghĩa của "${word}"`,
+        false,
+        !value
+      );
+    }
+
+    const submitBtn = popup.querySelector('#vocab-meaning-submit');
+    const cancelBtn = popup.querySelector('#vocab-meaning-cancel');
+
+    submitBtn.addEventListener('click', submitMeaning);
+    submitBtn.addEventListener('mouseover', function() { this.style.background = '#fbbf24'; });
+    submitBtn.addEventListener('mouseout',  function() { this.style.background = '#fde047'; });
+
+    cancelBtn.addEventListener('click', () => popup.remove());
+    cancelBtn.addEventListener('mouseover', function() { this.style.background = 'rgba(255,255,255,0.08)'; });
+    cancelBtn.addEventListener('mouseout',  function() { this.style.background = 'transparent'; });
+
+    // Click outside → close
+    setTimeout(() => {
+      document.addEventListener('mousedown', function handler(e) {
+        if (!popup.contains(e.target)) {
+          popup.remove();
+          document.removeEventListener('mousedown', handler);
+        }
+      });
+    }, 0);
+  }
+
   // ─── MutationObserver ─────────────────────────────────────────────────────────
 
   function setupMutationObserver() {
@@ -451,29 +636,6 @@
 
     mutationObserver.observe(document.body, { childList: true, subtree: true });
   }
-
-  // ─── Ctrl + Right-click to Remove Word ───────────────────────────────────────
-
-  document.addEventListener('contextmenu', async (e) => {
-    if (!e.ctrlKey) return;
-
-    const el = e.target.closest?.('.' + HIGHLIGHT_CLASS);
-    if (!el) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const word = el.dataset.vocab || el.textContent.toLowerCase();
-
-    el.style.outline       = '2px solid #ef4444';
-    el.style.outlineOffset = '1px';
-    setTimeout(() => {
-      el.style.outline       = '';
-      el.style.outlineOffset = '';
-    }, 300);
-
-    await removeWord(word);
-  }, true);
 
   // ─── Banner ───────────────────────────────────────────────────────────────────
 
@@ -576,6 +738,7 @@
       setupMutationObserver();
       setupTooltip();
       setupSelectionButton();
+      setupMeaningPopup();
     } catch (err) {
       console.warn('[VocabHighlighter] Init error:', err);
     }

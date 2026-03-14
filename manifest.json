@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vocab Highlighter",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Save vocabulary words while browsing and automatically highlight them on every page you visit.",
 
   "permissions": [
