@@ -1,0 +1,43 @@
+/**
+ * styles.css — injected into every web page by the content script
+ *
+ * Rules here apply globally on host pages, so:
+ *  • Use highly-specific selectors to avoid overriding site styles
+ *  • Keep the surface area minimal (only what the extension needs)
+ */
+
+/* ── Vocabulary Highlight ──────────────────────────────────────────────────── */
+
+mark.vocab-highlight {
+  /* Override browser's default <mark> style */
+  background-color : #fde047;   /* Tailwind yellow-300 — warm, readable */
+  color            : #1c1917;   /* Near-black for maximum contrast        */
+  font-weight      : 700;
+  border-radius    : 2px;
+  padding          : 0 2px;
+  box-decoration-break : clone; /* Handles line-wrapped highlights cleanly */
+  -webkit-box-decoration-break : clone;
+
+  /* Smooth appearance when new highlights are inserted */
+  animation: vocab-pop-in 0.25s ease-out both;
+}
+
+/* Subtle pulse on first render so the user notices the highlights */
+@keyframes vocab-pop-in {
+  from {
+    background-color : #fef08a;  /* slightly lighter yellow */
+    transform        : scaleY(0.85);
+  }
+  to {
+    background-color : #fde047;
+    transform        : scaleY(1);
+  }
+}
+
+/* Dim highlight on hover so the tooltip text is easier to read */
+mark.vocab-highlight:hover {
+  background-color : #fbbf24;   /* Slightly deeper amber on hover */
+  cursor           : help;
+  outline          : 2px solid #f59e0b;
+  outline-offset   : 1px;
+}

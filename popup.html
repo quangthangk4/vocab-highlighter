@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vocab Highlighter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <!-- ── Header ────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <span class="logo-icon">📖</span>
+      <div>
+        <h1>Vocab Highlighter</h1>
+        <p class="subtitle">Your personal word tracker</p>
+      </div>
+    </div>
+    <div class="word-count-badge" id="word-count">0 words</div>
+  </header>
+
+  <!-- ── Manual Add ────────────────────────────────────────────────── -->
+  <section class="add-section">
+    <div class="input-row">
+      <input
+        type="text"
+        id="manual-input"
+        placeholder="Add a word manually…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="add-btn" aria-label="Add word">＋</button>
+    </div>
+    <p class="input-hint" id="input-hint"></p>
+  </section>
+
+  <!-- ── Search ─────────────────────────────────────────────────────── -->
+  <section class="search-section">
+    <input
+      type="search"
+      id="search-input"
+      placeholder="🔍  Search your words…"
+      autocomplete="off"
+    />
+  </section>
+
+  <!-- ── Word List ──────────────────────────────────────────────────── -->
+  <main>
+    <ul id="word-list" class="word-list" aria-label="Vocabulary words"></ul>
+    <div id="empty-state" class="empty-state" hidden>
+      <span class="empty-icon">🌱</span>
+      <p>No words yet.</p>
+      <p class="empty-hint">Highlight any text on a webpage,<br/>right-click → <em>Save to Vocabulary</em>.</p>
+    </div>
+    <div id="no-results" class="empty-state" hidden>
+      <span class="empty-icon">🔎</span>
+      <p>No matching words.</p>
+    </div>
+  </main>
+
+  <!-- ── Footer ────────────────────────────────────────────────────── -->
+  <footer>
+    <button id="clear-all-btn" class="btn-danger">🗑 Clear all</button>
+    <button id="export-btn" class="btn-ghost">⬇ Export</button>
+    <button id="settings-btn" class="btn-ghost" title="Settings">⚙️</button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

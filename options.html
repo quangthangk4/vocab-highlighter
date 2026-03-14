@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vocab Highlighter — Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+
+  <div class="page">
+
+    <!-- ── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">📖</span>
+        <div>
+          <h1>Vocab Highlighter</h1>
+          <p>Settings</p>
+        </div>
+      </div>
+
+      <nav>
+        <button class="nav-btn active" data-tab="appearance">🎨 Appearance</button>
+        <button class="nav-btn"        data-tab="behaviour" >⚙️ Behaviour</button>
+        <button class="nav-btn"        data-tab="backup"    >💾 Backup &amp; Restore</button>
+        <button class="nav-btn"        data-tab="about"     >ℹ️ About</button>
+      </nav>
+    </aside>
+
+    <!-- ── Main Content ────────────────────────────────── -->
+    <main class="content">
+
+      <!-- Saved toast -->
+      <div id="saved-toast" class="toast" hidden>✅ Settings saved!</div>
+
+      <!-- ── Appearance ─────────────────────────────────── -->
+      <section id="tab-appearance" class="tab active">
+        <h2>Appearance</h2>
+        <p class="section-desc">Customize how saved words look on every page.</p>
+
+        <div class="card">
+          <label class="field-label">Highlight Colour</label>
+          <div class="colour-presets">
+            <button class="preset-swatch active" data-color="#fde047" style="background:#fde047" title="Yellow"></button>
+            <button class="preset-swatch"        data-color="#86efac" style="background:#86efac" title="Green"></button>
+            <button class="preset-swatch"        data-color="#93c5fd" style="background:#93c5fd" title="Blue"></button>
+            <button class="preset-swatch"        data-color="#f9a8d4" style="background:#f9a8d4" title="Pink"></button>
+            <button class="preset-swatch"        data-color="#fca5a5" style="background:#fca5a5" title="Red"></button>
+            <button class="preset-swatch"        data-color="#d8b4fe" style="background:#d8b4fe" title="Purple"></button>
+            <label class="preset-swatch custom-swatch" title="Custom colour">
+              🎨
+              <input type="color" id="custom-color" value="#fde047" />
+            </label>
+          </div>
+
+          <div class="preview-row">
+            <label class="field-label">Preview</label>
+            <div class="preview-box">
+              The quick brown fox jumped over the
+              <mark id="preview-mark" class="preview-hl">lazy</mark>
+              dog. She studies <mark class="preview-hl" id="preview-mark2">vocabulary</mark> every day.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <label class="field-label">Text Colour</label>
+          <div class="colour-presets">
+            <button class="preset-text-swatch active" data-tcolor="#1c1917" style="background:#1c1917;color:#fff">Aa</button>
+            <button class="preset-text-swatch"        data-tcolor="#ffffff" style="background:#fff;color:#1c1917;border:1px solid #ccc">Aa</button>
+            <button class="preset-text-swatch"        data-tcolor="#1e3a5f" style="background:#1e3a5f;color:#fff">Aa</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <label class="field-label">Font Weight</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" data-fw="bold"  >Bold</button>
+            <button class="toggle-btn"        data-fw="normal">Normal</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <label class="field-label">Tooltip Width</label>
+          <p class="card-desc" style="margin-bottom:14px">Control how wide the IPA tooltip appears on hover.</p>
+          <div class="slider-row">
+            <input type="range" id="tooltip-width" min="160" max="400" step="10" value="280" />
+            <span class="slider-value" id="tooltip-width-value">280px</span>
+          </div>
+          <div class="tooltip-preview-wrap">
+            <div id="tooltip-preview-box">
+              <div style="opacity:0.6;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;color:#94a3b8">📖 example</div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:2px">
+                <span style="font-size:16px;line-height:1">🇺🇸</span>
+                <div>
+                  <div style="font-size:9px;opacity:0.5;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:1px">American</div>
+                  <div style="font-size:17px;color:#fde047;letter-spacing:0.03em">/ɪɡˈzæmpəl/</div>
+                </div>
+              </div>
+              <div style="border-top:1px solid rgba(255,255,255,0.1);margin:7px 0 5px"></div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:2px">
+                <span style="font-size:16px;line-height:1">🇬🇧</span>
+                <div>
+                  <div style="font-size:9px;opacity:0.5;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:1px">British</div>
+                  <div style="font-size:17px;color:#fde047;letter-spacing:0.03em">/ɪɡˈzɑːmpəl/</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ── Behaviour ──────────────────────────────────── -->
+      <section id="tab-behaviour" class="tab">
+        <h2>Behaviour</h2>
+        <p class="section-desc">Control how and when highlighting is active.</p>
+
+        <div class="card">
+          <div class="switch-row">
+            <div>
+              <span class="switch-label">Enable Highlighting</span>
+              <span class="switch-desc">Highlight saved words on every page</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-enabled" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="switch-row">
+            <div>
+              <span class="switch-label">Show IPA Tooltip</span>
+              <span class="switch-desc">Show pronunciation on hover</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-tooltip" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Backup & Restore ───────────────────────────── -->
+      <section id="tab-backup" class="tab">
+        <h2>Backup &amp; Restore</h2>
+        <p class="section-desc">
+          Your words are stored in <code>chrome.storage.sync</code> and
+          <strong>automatically sync across devices</strong> — they
+          <em>never</em> get deleted when you update the extension.<br/>
+          Use the tools below for manual backup or to migrate between browsers.
+        </p>
+
+        <div class="card">
+          <h3>Export Words</h3>
+          <p class="card-desc">Download your vocabulary as a plain-text file (one word per line).</p>
+          <button id="export-txt-btn" class="btn-primary">⬇ Export as .txt</button>
+          <button id="export-json-btn" class="btn-secondary">⬇ Export as .json</button>
+        </div>
+
+        <div class="card">
+          <h3>Import Words</h3>
+          <p class="card-desc">Import a <code>.txt</code> file (one word per line) or a <code>.json</code> array. Duplicate words are skipped automatically.</p>
+          <label class="file-drop" id="drop-zone">
+            <span class="drop-icon">📂</span>
+            <span>Drop file here or <u>click to browse</u></span>
+            <input type="file" id="import-file" accept=".txt,.json" hidden />
+          </label>
+          <p id="import-feedback" class="import-feedback"></p>
+        </div>
+
+        <div class="card danger-zone">
+          <h3>⚠️ Danger Zone</h3>
+          <p class="card-desc">Permanently delete all saved words. This cannot be undone.</p>
+          <button id="clear-all-btn" class="btn-danger">🗑 Delete all words</button>
+        </div>
+      </section>
+
+      <!-- ── About ──────────────────────────────────────── -->
+      <section id="tab-about" class="tab">
+        <h2>About</h2>
+        <div class="card about-card">
+          <div class="about-icon">📖</div>
+          <h3>Vocab Highlighter</h3>
+          <p class="version">Version 2.0.0</p>
+          <p class="about-desc">
+            Highlight words you want to learn across every page you visit.
+            Save words by right-clicking, or using the selection button that
+            appears when you highlight text.
+          </p>
+          <div class="about-tips">
+            <div class="tip"><span>🖱️</span><p>Right-click selected text → <em>Save to Vocabulary</em></p></div>
+            <div class="tip"><span>🔖</span><p>Or use the floating bookmark button that appears on selection</p></div>
+            <div class="tip"><span>🔤</span><p>Hover any highlighted word to see its IPA pronunciation</p></div>
+            <div class="tip"><span>☁️</span><p>Words sync automatically across all your Chrome devices</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Save Button ────────────────────────────────── -->
+      <div class="save-bar" id="save-bar">
+        <button id="save-btn" class="btn-primary btn-save">Save Settings</button>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
