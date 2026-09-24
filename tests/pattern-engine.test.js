@@ -19,6 +19,26 @@ function matchedText(pattern, text) {
   assert.deepEqual(result.ast.placeholders, ['PERSON', 'VERB_BASE']);
 }
 
+// Chat-friendly JSON supports the exact { pattern, meaning, example } shape.
+{
+  const imported = engine.createPatternNotesFromJson(`{
+    "pattern": "turn in the direction of sth",
+    "meaning": "quay về hướng của cái gì",
+    "example": "Turning in the direction of the thundering noise."
+  }`);
+  assert.equal(imported.ok, true);
+  assert.equal(imported.notes.length, 1);
+  assert.equal(imported.notes[0].rawPattern, 'turn in the direction of sth');
+  assert.equal(imported.notes[0].meaning, 'quay về hướng của cái gì');
+  assert.equal(imported.notes[0].examples[0].text, 'Turning in the direction of the thundering noise.');
+}
+
+{
+  const imported = engine.createPatternNotesFromJson('```json\n[&#x20;{"pattern":"raise sth","example":"They raised their heads."}\n]\n```');
+  assert.equal(imported.ok, true);
+  assert.equal(imported.notes[0].rawPattern, 'raise sth');
+}
+
 for (const [text, expected] of [
   ['I teach him how to swim.', 'teach him how to swim'],
   ['She teaches her how to cook.', 'teaches her how to cook'],
@@ -59,6 +79,20 @@ for (const text of [
 // A head word alone is never enough for a structure match.
 assert.equal(matches('teach sb how to V', 'I teach English at school.').length, 0);
 assert.equal(matches('teach sb how to V', 'They are teaching the table how to move.').length, 0);
+
+// A terminal `sth` slot includes its complete noun phrase, then stops before
+// punctuation or the next preposition rather than stopping after an article.
+assert.deepEqual(
+  matchedText(
+    'turn in the direction of sth',
+    'Turning in the direction of the thundering noise, many slaves raised their heads.'
+  ),
+  ['Turning in the direction of the thundering noise']
+);
+assert.deepEqual(
+  matchedText('turn in the direction of sth', 'They turned in the direction of the noise from outside.'),
+  ['turned in the direction of the noise']
+);
 
 // Multiple saved patterns can be highlighted in one sentence.
 {

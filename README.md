@@ -25,9 +25,11 @@ Chrome extension giúp bạn lưu từ vựng và English patterns để chúng 
 3. Thêm nghĩa nếu cần → **Save pattern**.
 4. Khi gặp cấu trúc phù hợp, extension highlight phần khớp. Click highlight để xem pattern, breakdown, confidence và lưu example.
 
-Pattern hỗ trợ: `sb`, `sth`, `V`, `V-ing`, `adj`, `adv`, `place`, `time`.
+Pattern hỗ trợ: `sb`, `sb's`, `sth`, `V`, `V-ing`, `adj`, `adv`, `place`, `time`.
 
 Ví dụ: `teach sb how to V` sẽ match `teaching his son how to fish`, nhưng không match `I teach English at school.`
+
+Với placeholder ở cuối pattern, extension lấy cả noun phrase và dừng trước giới từ hoặc dấu câu. Ví dụ `turn in the direction of sth` sẽ match `Turning in the direction of the thundering noise`.
 
 ### Prompt chuẩn hóa pattern bằng ChatGPT
 
@@ -39,6 +41,7 @@ Bạn là trợ lý tạo English learning patterns cho browser extension của 
 Hãy trích xuất tối đa 5 patterns hữu ích từ đoạn TEXT bên dưới.
 Chỉ dùng đúng các placeholder sau:
 - sb = somebody / person
+- sb's = somebody's / a person's
 - sth = something / thing
 - V = base verb
 - V-ing = gerund / present participle
@@ -63,7 +66,7 @@ TEXT:
 "Dán đoạn tiếng Anh ở đây"
 ```
 
-Sau đó copy giá trị `pattern` vào **Patterns** của extension. Nếu chat trả về `something`, hãy đổi thành `sth` trước khi lưu.
+Trong **Patterns** → **Paste JSON from chat**, dán cả JSON object hoặc JSON array rồi nhấn **Import JSON pattern**. Extension tự lưu pattern, meaning và example. Nếu chat trả về `something`, hãy đổi thành `sth` trước khi import.
 
 ### Chỉnh độ chính xác
 

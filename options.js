@@ -38,6 +38,7 @@
   let settings = { ...DEFAULTS };
   let patternNotes = [];
   let editingPatternId = null;
+  let pendingJsonPatternNotes = null;
 
   // ─── DOM References ────────────────────────────────────────────────────────
 
@@ -79,6 +80,15 @@
   const patternEditorTitle      = document.getElementById('pattern-editor-title');
   const patternRawInput         = document.getElementById('pattern-raw-input');
   const patternMeaningInput     = document.getElementById('pattern-meaning-input');
+  const patternJsonInput        = document.getElementById('pattern-json-input');
+  const patternJsonFeedback     = document.getElementById('pattern-json-feedback');
+  const validatePatternJsonBtn  = document.getElementById('validate-pattern-json-btn');
+  const patternJsonPreview      = document.getElementById('pattern-json-preview');
+  const patternJsonPreviewTitle = document.getElementById('pattern-json-preview-title');
+  const patternJsonPreviewCount = document.getElementById('pattern-json-preview-count');
+  const patternJsonPreviewList  = document.getElementById('pattern-json-preview-list');
+  const confirmPatternJsonBtn   = document.getElementById('confirm-pattern-json-btn');
+  const cancelPatternJsonBtn    = document.getElementById('cancel-pattern-json-btn');
   const patternPreview          = document.getElementById('pattern-normalized-preview');
   const patternFeedback         = document.getElementById('pattern-form-feedback');
   const patternSubmitBtn        = document.getElementById('pattern-submit-btn');
@@ -265,6 +275,11 @@
     patternFeedback.className = `import-feedback ${type}`.trim();
   }
 
+  function setPatternJsonFeedback(message = '', type = '') {
+    patternJsonFeedback.textContent = message;
+    patternJsonFeedback.className = `import-feedback ${type}`.trim();
+  }
+
   async function persistPatternNotes() {
     await chrome.storage.local.set({ [PATTERNS_KEY]: patternNotes });
   }
@@ -283,6 +298,30 @@
 
   function patternExampleCount(note) {
     return Array.isArray(note.examples) ? note.examples.length : 0;
+  }
+
+  function mergePatternExamples(existingExamples, incomingExamples) {
+    const merged = Array.isArray(existingExamples) ? [...existingExamples] : [];
+    const seen = new Set(merged.map(item => (typeof item === 'string' ? item : item?.text)).filter(Boolean));
+    for (const item of incomingExamples || []) {
+      const text = typeof item === 'string' ? item : item?.text;
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      merged.push(typeof item === 'string' ? { text, savedAt: new Date().toISOString() } : item);
+    }
+    return merged;
+  }
+
+  function mergeImportedPattern(existing, incoming) {
+    const examples = mergePatternExamples(existing.examples, incoming.examples);
+    const meaning = existing.meaning || incoming.meaning || '';
+    const changed = meaning !== (existing.meaning || '') || examples.length !== (existing.examples || []).length;
+    return {
+      changed,
+      note: changed
+        ? { ...existing, meaning, examples, updatedAt: new Date().toISOString() }
+        : existing,
+    };
   }
 
   function renderPatternList() {
@@ -406,6 +445,55 @@
   });
 
   patternCancelEditBtn.addEventListener('click', () => setPatternEditor());
+  importPatternJsonBtn.addEventListener('click', async () => {
+    const parsed = window.VocabPatternEngine?.createPatternNotesFromJson(patternJsonInput.value);
+    if (!parsed?.ok) {
+      setPatternJsonFeedback(parsed?.error || 'Pattern engine unavailable.', 'error');
+      return;
+    }
+
+    let workingNotes = [...patternNotes];
+    let added = 0;
+    let updated = 0;
+    let unchanged = 0;
+    const usedIds = new Set(workingNotes.map(note => note.id));
+
+    for (const incoming of parsed.notes) {
+      const existingIndex = workingNotes.findIndex(note =>
+        note.rawPattern.toLowerCase() === incoming.rawPattern.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        const merged = mergeImportedPattern(workingNotes[existingIndex], incoming);
+        workingNotes[existingIndex] = merged.note;
+        if (merged.changed) updated += 1;
+        else unchanged += 1;
+        continue;
+      }
+
+      let note = incoming;
+      if (usedIds.has(note.id)) {
+        const recreated = window.VocabPatternEngine.createPatternNote(note.rawPattern, {
+          meaning: note.meaning,
+          status: note.status,
+          examples: note.examples,
+          createdAt: note.createdAt,
+        });
+        note = recreated.note;
+      }
+      usedIds.add(note.id);
+      workingNotes.push(note);
+      added += 1;
+    }
+
+    patternNotes = workingNotes;
+    if (added || updated) await persistPatternNotes();
+    renderPatternList();
+    patternJsonInput.value = '';
+    setPatternJsonFeedback(
+      `Imported ${added} new pattern(s)${updated ? `, updated ${updated}` : ''}${unchanged ? `, skipped ${unchanged} unchanged` : ''}.`,
+      'success'
+    );
+  });
   patternMatchingToggle.addEventListener('change', () => {
     settings.patternMatching.enabled = patternMatchingToggle.checked;
   });

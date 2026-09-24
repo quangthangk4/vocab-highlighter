@@ -568,6 +568,34 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 0 0 3px rgba(253,224,71,0.12);
 }
 
+.pattern-json-input {
+  min-height: 148px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.pattern-json-card .import-feedback { margin: 8px 0; }
+
+.pattern-json-preview {
+  background: rgba(74, 222, 128, 0.06);
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  border-radius: var(--radius-sm);
+  margin-top: 14px;
+  padding: 13px;
+}
+
+.pattern-json-preview-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.pattern-json-preview-heading strong { color: #bbf7d0; font-size: 0.86rem; }
+.pattern-json-preview-list { display: grid; gap: 8px; list-style: none; margin-top: 10px; }
+.pattern-json-preview-item { background: rgba(15, 23, 42, 0.45); border-radius: 6px; padding: 9px; }
+.pattern-json-preview-item code { overflow-wrap: anywhere; }
+.pattern-json-preview-copy { color: var(--text-2); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
+.pattern-json-preview-state { color: var(--text-3); font-size: 0.72rem; margin-top: 5px; }
+.pattern-json-preview-actions { display: flex; gap: 0; margin-top: 13px; }
+.pattern-json-preview-actions .btn-secondary { margin-left: 10px; }
+
 .optional-label { color: var(--text-3); font-weight: 400; text-transform: none; letter-spacing: normal; }
 
 .pattern-normalized-preview {

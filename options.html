@@ -169,6 +169,26 @@
           </form>
         </div>
 
+        <div class="card pattern-json-card">
+          <h3>Paste JSON from chat</h3>
+          <p class="card-desc">Paste one object or an array with <code>pattern</code>, <code>meaning</code>, and optional <code>example</code>. The example is saved with the note.</p>
+          <label class="field-label" for="pattern-json-input">Pattern JSON</label>
+          <textarea id="pattern-json-input" class="pattern-input pattern-json-input" rows="7" spellcheck="false" placeholder='{"pattern":"turn in the direction of sth","meaning":"quay về hướng của cái gì","example":"Turning in the direction of the thundering noise."}'></textarea>
+          <p id="pattern-json-feedback" class="import-feedback" aria-live="polite"></p>
+          <button id="validate-pattern-json-btn" class="btn-primary" type="button">Check JSON</button>
+          <section id="pattern-json-preview" class="pattern-json-preview" aria-live="polite" hidden>
+            <div class="pattern-json-preview-heading">
+              <strong id="pattern-json-preview-title">Ready to add</strong>
+              <span id="pattern-json-preview-count" class="pattern-count">0</span>
+            </div>
+            <ul id="pattern-json-preview-list" class="pattern-json-preview-list"></ul>
+            <div class="pattern-json-preview-actions">
+              <button id="confirm-pattern-json-btn" class="btn-primary" type="button">Add patterns</button>
+              <button id="cancel-pattern-json-btn" class="btn-secondary" type="button">Edit JSON</button>
+            </div>
+          </section>
+        </div>
+
         <div class="card">
           <h3>Matching confidence</h3>
           <p class="card-desc">Only matches at or above this score are highlighted. Lower-confidence candidates stay local and are not sent anywhere.</p>
