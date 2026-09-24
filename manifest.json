@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Vocab Highlighter",
-  "version": "4.0.0",
-  "description": "Save vocabulary words while browsing and automatically highlight them on every page you visit.",
+  "version": "5.0.0",
+  "description": "Save vocabulary and English patterns; highlight matched grammatical constructions while browsing.",
 
   "permissions": [
     "storage",
@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["pattern-engine.js", "content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"
     }

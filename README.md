@@ -86,6 +86,67 @@ Dùng khi bạn cảm thấy đã nhớ vững từ đó rồi và không cần 
 
 ---
 
+## 🧩 English Pattern Notes & Pattern Matching
+
+Ngoài từng từ đơn lẻ, extension có thể lưu **English patterns/chunks** như:
+
+- `teach sb how to V`
+- `sit at the table`
+- `be interested in V-ing`
+- `have difficulty V-ing`
+
+Trong popup, nhấn **Patterns** để mở Settings → **Pattern Notes**. Nhập pattern và nghĩa (tuỳ chọn); giao diện sẽ cho xem trước cấu trúc đã chuẩn hoá trước khi lưu.
+
+### Pattern được lưu như thế nào?
+
+Pattern được lưu tại `chrome.storage.local` trong `patternNotes`, dưới dạng note có AST, trạng thái học và examples — không chỉ là raw string. Điều này tránh giới hạn dung lượng nhỏ trên từng mục của Chrome Sync khi lưu nhiều examples; dùng **Export pattern notes** để backup/migrate chúng.
+
+```json
+{
+  "rawPattern": "teach sb how to V",
+  "normalizedPattern": {
+    "kind": "verb-construction",
+    "head": { "type": "VERB", "lemma": "teach", "inflection": "any-form" },
+    "sequence": [
+      { "type": "PLACEHOLDER", "slot": "PERSON", "raw": "sb" },
+      { "type": "LITERAL", "value": "how", "raw": "how" },
+      { "type": "LITERAL", "value": "to", "raw": "to" },
+      { "type": "PLACEHOLDER", "slot": "VERB_BASE", "raw": "V" }
+    ]
+  },
+  "meaning": "dạy ai đó cách làm gì",
+  "status": "learning",
+  "examples": []
+}
+```
+
+Các placeholder hiện hỗ trợ: `sb` (PERSON), `sth` (THING), `V` (base verb), `V-ing` (gerund), `adj`, `adv`, `place`, và `time`. Thiết kế AST này cho phép bổ sung slot mới mà không thay đổi dữ liệu cũ.
+
+### Matching hoạt động ra sao?
+
+Pipeline local-first:
+
+```text
+Text node trên webpage
+  → candidate head verb (lemma/inflection)
+  → kiểm tra connector và placeholder theo thứ tự
+  → chấm confidence theo từng slot
+  → highlight nếu đạt threshold
+  → candidate thấp điểm (AI adapter tùy chọn trong tương lai)
+```
+
+Vì kiểm tra cấu trúc đầy đủ, `I teach English at school.` sẽ không match `teach sb how to V`, còn `The father is teaching his son how to fish.` sẽ highlight `teaching his son how to fish` và hiển thị breakdown `teach → teaching`, `sb → his son`, `V → fish` khi click.
+
+Local matching xử lý nhanh các biến thể `teach/teaches/taught/teaching`, `sit/sits/sat/sitting`, `be/is/was/are/became`, và `have/has/had/having`. Regex thuần chỉ phù hợp để tokenize; stemming/lemmatization được dùng cho biến thể, còn structure matcher chịu trách nhiệm chống false-positive. Không dùng embedding hay LLM cho mọi câu vì không đảm bảo quan hệ ngữ pháp, làm extension nặng và có thể đưa nội dung trang ra ngoài. AI fallback mặc định tắt, chưa gửi dữ liệu trang khi người dùng chưa tự cấu hình provider.
+
+### Tương tác với kết quả pattern
+
+Click phần được highlight để xem Pattern, Found in, Meaning, confidence, và Breakdown. Từ inspector có thể lưu example, đánh dấu đã học, để review sau, sửa/xem tất cả examples trong Pattern Notes, hoặc xóa pattern.
+
+Trong Pattern Notes, đặt **Matching confidence** (mặc định 85%). Tăng threshold để giảm highlight không chắc chắn; giảm vừa phải nếu pattern chứa `place`, `time`, hay object phrase rộng.
+
+---
+
 ### Cài đặt giao diện
 
 Nhấn **⚙️** trong popup (hoặc vào `chrome://extensions` → Vocab Highlighter → **Extension options**) để mở trang Settings.
@@ -107,7 +168,8 @@ Trong trang Settings → tab **Backup & Restore**:
 
 - **Export .txt** — Tải danh sách từ về dưới dạng file text, mỗi từ một dòng
 - **Export .json** — Tải về dạng JSON array, tiện để import lại hoặc dùng với tool khác
-- **Import** — Kéo thả hoặc chọn file `.txt`/`.json` để nhập từ hàng loạt (tự động bỏ qua từ trùng)
+- **Export pattern notes** — Tải AST, nghĩa, trạng thái và examples của patterns về JSON
+- **Import** — Kéo thả hoặc chọn file `.txt`/`.json` để nhập words hoặc file pattern-notes JSON (tự động bỏ qua mục trùng)
 - **Xóa tất cả** — Xoá toàn bộ danh sách (có xác nhận trước khi xoá)
 
 > ☁️ Từ vựng tự đồng bộ qua tài khoản Google trên mọi thiết bị Chrome của bạn.
@@ -124,6 +186,11 @@ Trong trang Settings → tab **Backup & Restore**:
 ---
 
 ## 📋 Changelog
+
+### v5.0.0
+- Thêm English Pattern Notes, structured normalization và local grammatical matching
+- Thêm highlight pattern có confidence threshold và inspector/breakdown khi click
+- Thêm export/import cho pattern notes
 
 ### v4.0.0
 - Thêm `Ctrl + Left-click` để nhập / sửa nghĩa của từ

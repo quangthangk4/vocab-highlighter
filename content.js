@@ -12,9 +12,12 @@
   'use strict';
 
   const STORAGE_KEY     = 'vocabWords';
+  const PATTERNS_KEY    = 'patternNotes';
   const SETTINGS_KEY    = 'vocabSettings';
   const HIGHLIGHT_CLASS = 'vocab-highlight';
+  const PATTERN_HIGHLIGHT_CLASS = 'vocab-pattern-highlight';
   const TOOLTIP_ID      = 'vocab-hl-tooltip';
+  const PATTERN_INSPECTOR_ID = 'vocab-pattern-inspector';
   const SEL_BTN_ID      = 'vocab-sel-btn';
   const DYN_STYLE_ID     = 'vocab-hl-dynamic-style';
   const MEANINGS_KEY     = 'vocabMeanings';    // { word: "nghĩa" }
@@ -26,6 +29,7 @@
   ]);
 
   let vocabPattern     = null;
+  let patternNotes     = [];
   let currentSettings  = getDefaultSettings();
   let mutationObserver = null;
   let isHighlighting   = false;
@@ -38,6 +42,20 @@
       fontWeight:     'bold',
       showTooltip:    true,
       tooltipWidth:   280,
+      patternMatching: {
+        enabled: true,
+        confidenceThreshold: 0.85,
+        aiFallbackEnabled: false,
+      },
+    };
+  }
+
+  function mergeSettings(saved = {}) {
+    const defaults = getDefaultSettings();
+    return {
+      ...defaults,
+      ...saved,
+      patternMatching: { ...defaults.patternMatching, ...(saved.patternMatching || {}) },
     };
   }
 
@@ -56,6 +74,11 @@
         color            : ${settings.textColor}      !important;
         font-weight      : ${settings.fontWeight}     !important;
       }
+      mark.${PATTERN_HIGHLIGHT_CLASS} {
+        background-color : ${settings.highlightColor} !important;
+        color            : ${settings.textColor}      !important;
+        font-weight      : ${settings.fontWeight}     !important;
+      }
     `;
   }
 
@@ -65,10 +88,116 @@
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function sanitizeHTML(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    const allowedTags = new Set([
+      'P', 'BR', 'OL', 'UL', 'LI', 'MARK', 'STRONG', 'EM', 'U', 'SPAN', 'DIV', 'B', 'I'
+    ]);
+
+    function cleanNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.cloneNode(true);
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = node.tagName.toUpperCase();
+        if (allowedTags.has(tagName)) {
+          const cleanEl = document.createElement(tagName);
+          for (let child of node.childNodes) {
+            cleanEl.appendChild(cleanNode(child));
+          }
+          return cleanEl;
+        } else {
+          const frag = document.createDocumentFragment();
+          for (let child of node.childNodes) {
+            frag.appendChild(cleanNode(child));
+          }
+          return frag;
+        }
+      }
+      return document.createTextNode('');
+    }
+
+    const container = document.createElement('div');
+    for (let child of doc.body.childNodes) {
+      container.appendChild(cleanNode(child));
+    }
+    return container.innerHTML;
+  }
+
+  function buildObjectSlotPattern() {
+    return String.raw`(?:[\p{L}\p{N}'-]+(?:\s+[\p{L}\p{N}'-]+){0,7})`;
+  }
+
+  function buildFirstWordPattern(word) {
+    const irregulars = {
+      give: ['give', 'gives', 'giving', 'gave', 'given'],
+    };
+
+    if (irregulars[word]) {
+      return `(?:${irregulars[word].map(escapeRegex).join('|')})`;
+    }
+
+    if (word.endsWith('e') && word.length > 2) {
+      return `(?:${escapeRegex(word)}|${escapeRegex(word + 's')}|${escapeRegex(word.slice(0, -1) + 'ing')}|${escapeRegex(word + 'd')})`;
+    }
+
+    return `(?:${escapeRegex(word)}|${escapeRegex(word + 's')}|${escapeRegex(word + 'ing')}|${escapeRegex(word + 'ed')})`;
+  }
+
+  function isObjectSlotToken(word) {
+    return /^(sb|sth|object|person|thing|someone|somebody|something|someone\/something|somebody\/something|sb\/sth|someone\/somebody|someone\/somebody\/something)$/.test(word.toLowerCase());
+  }
+
+  function buildWordPattern(word, index, allowInflection) {
+    const normalized = word.toLowerCase();
+    if (isObjectSlotToken(normalized)) {
+      return buildObjectSlotPattern();
+    }
+    if (allowInflection && index === 0) return buildFirstWordPattern(normalized);
+    return escapeRegex(word);
+  }
+
+  function buildVocabEntryPattern(word) {
+    const tokens = word.trim().split(/\s+/);
+    const allowInflection = tokens.some(isObjectSlotToken);
+    return tokens.map((token, index) => buildWordPattern(token, index, allowInflection)).join(String.raw`\s+`);
+  }
+
+  function getMatchedVocab(matchText) {
+    const lower = matchText.toLowerCase();
+    return (vocabPattern?.entries || []).find(entry => entry.test.test(lower))?.word || lower;
+  }
+
   function buildPattern(words) {
     if (!words.length) return null;
-    const alts = words.map(escapeRegex).join('|');
-    return new RegExp(`\\b(${alts})\\b`, 'gi');
+    const entries = words
+      .map(word => word.trim().toLowerCase())
+      .filter(Boolean)
+      .map(word => ({
+        word,
+        source: buildVocabEntryPattern(word),
+      }))
+      .sort((a, b) => b.source.length - a.source.length);
+
+    const alts = entries.map(entry => entry.source).join('|');
+    const pattern = new RegExp(`\\b(${alts})\\b`, 'giu');
+    pattern.entries = entries.map(entry => ({
+      word: entry.word,
+      test: new RegExp(`^${entry.source}$`, 'iu'),
+    }));
+    return pattern;
   }
 
   // ─── Safe DOM Traversal ───────────────────────────────────────────────────────
@@ -83,7 +212,10 @@
           const parent = node.parentElement;
           if (!parent) return NodeFilter.FILTER_REJECT;
           if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
-          if (parent.classList.contains(HIGHLIGHT_CLASS)) return NodeFilter.FILTER_REJECT;
+          if (
+            parent.classList.contains(HIGHLIGHT_CLASS) ||
+            parent.classList.contains(PATTERN_HIGHLIGHT_CLASS)
+          ) return NodeFilter.FILTER_REJECT;
           if (!node.textContent.trim()) return NodeFilter.FILTER_SKIP;
           return NodeFilter.FILTER_ACCEPT;
         },
@@ -95,6 +227,52 @@
   }
 
   // ─── Highlight ────────────────────────────────────────────────────────────────
+
+  function patternMatchingEnabled() {
+    return Boolean(
+      currentSettings.enabled &&
+      currentSettings.patternMatching?.enabled &&
+      patternNotes.length &&
+      window.VocabPatternEngine
+    );
+  }
+
+  function highlightPatternTextNode(textNode) {
+    if (!textNode.parentNode || !patternMatchingEnabled()) return false;
+    const text = textNode.textContent;
+    const { highlighted } = window.VocabPatternEngine.findMatches(text, patternNotes, {
+      threshold: currentSettings.patternMatching.confidenceThreshold,
+    });
+    if (!highlighted.length) return false;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of highlighted) {
+      if (match.start > cursor) {
+        fragment.appendChild(document.createTextNode(text.slice(cursor, match.start)));
+      }
+      const mark = document.createElement('mark');
+      mark.className = PATTERN_HIGHLIGHT_CLASS;
+      mark.textContent = match.matchedText;
+      mark.tabIndex = 0;
+      mark.setAttribute('role', 'button');
+      mark.setAttribute('aria-label', `Open pattern note: ${match.pattern}`);
+      mark.dataset.patternId = match.patternId;
+      mark.dataset.pattern = match.pattern || '';
+      mark.dataset.patternMatch = JSON.stringify({
+        matchedText: match.matchedText,
+        confidence: match.confidence,
+        breakdown: match.breakdown,
+      });
+      fragment.appendChild(mark);
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+    textNode.parentNode.replaceChild(fragment, textNode);
+    return true;
+  }
 
   function highlightTextNode(textNode) {
     if (!textNode.parentNode || !vocabPattern) return;
@@ -113,7 +291,7 @@
       const mark = document.createElement('mark');
       mark.className     = HIGHLIGHT_CLASS;
       mark.textContent   = match[0];
-      mark.dataset.vocab = match[0].toLowerCase();
+      mark.dataset.vocab = getMatchedVocab(match[0]);
       fragment.appendChild(mark);
       cursor = match.index + match[0].length;
     }
@@ -125,7 +303,7 @@
   }
 
   function highlightSubtree(root = document.body) {
-    if (!vocabPattern || !root || isHighlighting) return;
+    if ((!vocabPattern && !patternMatchingEnabled()) || !root || isHighlighting) return;
     isHighlighting = true;
 
     const textNodes = collectTextNodes(root);
@@ -134,7 +312,10 @@
     function processBatch(deadline) {
       while (index < textNodes.length) {
         if (!deadline.didTimeout && deadline.timeRemaining() < 2) break;
-        highlightTextNode(textNodes[index++]);
+        const textNode = textNodes[index++];
+        // Pattern matching runs first. It owns the complete grammatical span,
+        // so vocabulary marks are never nested inside a pattern mark.
+        if (!highlightPatternTextNode(textNode)) highlightTextNode(textNode);
         if (index % 50 === 0) break;
       }
       if (index < textNodes.length) {
@@ -155,7 +336,7 @@
   }
 
   function removeAllHighlights() {
-    document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(mark => {
+    document.querySelectorAll(`.${HIGHLIGHT_CLASS}, .${PATTERN_HIGHLIGHT_CLASS}`).forEach(mark => {
       mark.replaceWith(document.createTextNode(mark.textContent));
     });
     document.body.normalize();
@@ -182,7 +363,7 @@
   function buildTooltipHTML(word, us, uk, meaning = '') {
     const wordRow =
       `<div style="opacity:0.6;font-size:11px;letter-spacing:0.06em;` +
-      `text-transform:uppercase;margin-bottom:6px;color:#94a3b8">📖 ${word}</div>`;
+      `text-transform:uppercase;margin-bottom:6px;color:#94a3b8">📖 ${escapeHtml(word)}</div>`;
 
     const meaningRow = meaning
       ? `<div style="` +
@@ -191,7 +372,7 @@
           `border-left:3px solid #fde047;` +
           `border-radius:0 6px 6px 0;` +
           `font-size:13px;color:#f1f5f9;font-family:system-ui,sans-serif;` +
-          `line-height:1.5` +
+          `line-height:1.5;white-space:pre-wrap;word-break:break-word;` +
         `">${meaning}</div>`
       : '';
 
@@ -209,7 +390,7 @@
     }
 
     const ipaSection = (!us && !uk)
-      ? `<div style="opacity:0.4;font-size:12px;font-style:italic">pronunciation not found</div>`
+      ? `<div style="opacity:0.4;font-size:12px;font-style:italic"></div>`
       : accentBlock('🇺🇸', 'American', us) +
         ((us && uk) ? `<div style="border-top:1px solid rgba(255,255,255,0.1);margin:7px 0 5px"></div>` : '') +
         accentBlock('🇬🇧', 'British', uk);
@@ -272,7 +453,7 @@
 
       const [{ us, uk }, meaningsResult] = await Promise.all([
         fetchIPA(word),
-        chrome.storage.sync.get(MEANINGS_KEY),
+        chrome.storage.local.get(MEANINGS_KEY),
       ]);
       if (currentTarget !== el) return;
 
@@ -341,6 +522,18 @@
       const words   = result[STORAGE_KEY] || [];
       const updated = words.filter(w => w !== word);
       await chrome.storage.sync.set({ [STORAGE_KEY]: updated });
+
+      // Clean up local meaning if exists
+      try {
+        const localResult = await chrome.storage.local.get(MEANINGS_KEY);
+        const localMeanings = localResult[MEANINGS_KEY] || {};
+        if (localMeanings[word]) {
+          delete localMeanings[word];
+          await chrome.storage.local.set({ [MEANINGS_KEY]: localMeanings });
+        }
+      } catch (e) {
+        console.warn('[VocabHighlighter] Error removing local meaning:', e);
+      }
 
       // Remove highlights of this specific word on current page immediately
       document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(mark => {
@@ -490,7 +683,7 @@
 
       const word = el.dataset.vocab || el.textContent.toLowerCase();
 
-      const stored   = await chrome.storage.sync.get(MEANINGS_KEY);
+      const stored   = await chrome.storage.local.get(MEANINGS_KEY);
       const meanings = stored[MEANINGS_KEY] || {};
       const existing = meanings[word] || '';
 
@@ -520,14 +713,14 @@
 
     popup.innerHTML = `
       <div style="font-size:11px;opacity:0.55;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:10px;color:#94a3b8">
-        ✏️ Nghĩa của "<strong style="color:#fde047">${word}</strong>"
+        ✏️ Nghĩa của "<strong style="color:#fde047">${escapeHtml(word)}</strong>"
       </div>
-      <textarea id="vocab-meaning-input" placeholder="Nhập nghĩa của từ… (bỏ trống để xoá)" rows="3" style="
+      <div id="vocab-meaning-input" contenteditable="true" placeholder="Nhập nghĩa của từ… (bỏ trống để xoá)" style="
         width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);
         border-radius:8px;color:#f1f5f9;font-family:inherit;font-size:13px;
-        padding:8px 10px;resize:none;outline:none;line-height:1.5;
+        padding:8px 10px;min-height:80px;max-height:300px;overflow-y:auto;outline:none;line-height:1.5;
         transition:border-color 0.15s ease;box-sizing:border-box;
-      ">${existingMeaning}</textarea>
+      "></div>
       <div style="font-size:11px;opacity:0.4;margin-top:5px;font-family:inherit">
         Ctrl+Enter để lưu · Esc để huỷ
       </div>
@@ -556,8 +749,17 @@
     popup.style.top  = `${y}px`;
 
     const textarea = popup.querySelector('#vocab-meaning-input');
+    textarea.innerHTML = existingMeaning;
     textarea.focus();
-    textarea.select();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(textarea);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {
+      console.warn('[VocabHighlighter] selectNodeContents error:', e);
+    }
 
     textarea.addEventListener('focus', () => {
       textarea.style.borderColor = 'rgba(253,224,71,0.5)';
@@ -572,23 +774,28 @@
     });
 
     async function submitMeaning() {
-      const value    = textarea.value.trim();
-      const stored   = await chrome.storage.sync.get(MEANINGS_KEY);
+      const value    = sanitizeHTML(textarea.innerHTML).trim();
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = value;
+      const hasText = tempDiv.textContent.trim().length > 0;
+
+      const stored   = await chrome.storage.local.get(MEANINGS_KEY);
       const meanings = stored[MEANINGS_KEY] || {};
 
-      if (value) {
+      if (value && hasText) {
         meanings[word] = value;
       } else {
         delete meanings[word];
       }
 
-      await chrome.storage.sync.set({ [MEANINGS_KEY]: meanings });
+      await chrome.storage.local.set({ [MEANINGS_KEY]: meanings });
       popup.remove();
 
       showSaveBanner(
-        value ? `Đã lưu nghĩa: "${word}"` : `Đã xoá nghĩa của "${word}"`,
+        (value && hasText) ? `Đã lưu nghĩa: "${word}"` : `Đã xoá nghĩa của "${word}"`,
         false,
-        !value
+        !(value && hasText)
       );
     }
 
@@ -612,6 +819,161 @@
         }
       });
     }, 0);
+  }
+
+  // ─── Pattern Inspector ─────────────────────────────────────────────────────────
+
+  function readPatternMatch(mark) {
+    try {
+      return JSON.parse(mark.dataset.patternMatch || '{}');
+    } catch {
+      return { matchedText: mark.textContent, confidence: 0, breakdown: [] };
+    }
+  }
+
+  async function updatePatternNote(id, updater) {
+    const result = await chrome.storage.local.get(PATTERNS_KEY);
+    const savedNotes = result[PATTERNS_KEY] || [];
+    const updatedNotes = savedNotes.map(note => {
+      if (note.id !== id) return note;
+      return { ...updater(note), updatedAt: new Date().toISOString() };
+    });
+    patternNotes = updatedNotes;
+    await chrome.storage.local.set({ [PATTERNS_KEY]: updatedNotes });
+    return patternNotes.find(note => note.id === id);
+  }
+
+  function createPatternInspectorButton(label, action, variant = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `vocab-pattern-action ${variant}`.trim();
+    button.textContent = label;
+    button.addEventListener('click', action);
+    return button;
+  }
+
+  function closePatternInspector() {
+    document.getElementById(PATTERN_INSPECTOR_ID)?.remove();
+  }
+
+  function openPatternInspector(mark) {
+    closePatternInspector();
+    const match = readPatternMatch(mark);
+    const note = patternNotes.find(item => item.id === mark.dataset.patternId) || {};
+    const inspector = document.createElement('section');
+    inspector.id = PATTERN_INSPECTOR_ID;
+    inspector.setAttribute('role', 'dialog');
+    inspector.setAttribute('aria-label', `Pattern note for ${note.rawPattern || mark.dataset.pattern}`);
+
+    const closeButton = createPatternInspectorButton('×', closePatternInspector, 'icon');
+    closeButton.setAttribute('aria-label', 'Close pattern note');
+    inspector.appendChild(closeButton);
+
+    const title = document.createElement('div');
+    title.className = 'vocab-pattern-kicker';
+    title.textContent = 'Pattern';
+    inspector.appendChild(title);
+
+    const pattern = document.createElement('div');
+    pattern.className = 'vocab-pattern-name';
+    pattern.textContent = note.rawPattern || mark.dataset.pattern || 'Pattern';
+    inspector.appendChild(pattern);
+
+    const foundLabel = document.createElement('div');
+    foundLabel.className = 'vocab-pattern-kicker';
+    foundLabel.textContent = `Found in · ${Math.round((match.confidence || 0) * 100)}% confidence`;
+    inspector.appendChild(foundLabel);
+
+    const found = document.createElement('div');
+    found.className = 'vocab-pattern-found';
+    found.textContent = match.matchedText || mark.textContent;
+    inspector.appendChild(found);
+
+    const meaning = document.createElement('div');
+    meaning.className = 'vocab-pattern-meaning';
+    meaning.textContent = note.meaning || 'Add a meaning in Pattern Notes.';
+    inspector.appendChild(meaning);
+
+    const breakdownTitle = document.createElement('div');
+    breakdownTitle.className = 'vocab-pattern-kicker';
+    breakdownTitle.textContent = 'Breakdown';
+    inspector.appendChild(breakdownTitle);
+
+    const breakdown = document.createElement('ul');
+    breakdown.className = 'vocab-pattern-breakdown';
+    for (const part of match.breakdown || []) {
+      const item = document.createElement('li');
+      item.textContent = `${part.patternPart} → ${part.matched}`;
+      breakdown.appendChild(item);
+    }
+    inspector.appendChild(breakdown);
+
+    const actions = document.createElement('div');
+    actions.className = 'vocab-pattern-actions';
+    actions.appendChild(createPatternInspectorButton('Save example', async () => {
+      const example = (match.matchedText || mark.textContent).trim();
+      await updatePatternNote(note.id, current => {
+        const examples = Array.isArray(current.examples) ? current.examples : [];
+        const alreadySaved = examples.some(item => (typeof item === 'string' ? item : item.text) === example);
+        return {
+          ...current,
+          examples: alreadySaved ? examples : [...examples, { text: example, savedAt: new Date().toISOString() }].slice(-50),
+        };
+      });
+      showSaveBanner('Pattern example saved');
+    }));
+    actions.appendChild(createPatternInspectorButton(
+      note.status === 'learned' ? 'Learned' : 'Mark learned',
+      async () => {
+        await updatePatternNote(note.id, current => ({ ...current, status: 'learned' }));
+        showSaveBanner('Marked as learned');
+      }
+    ));
+    actions.appendChild(createPatternInspectorButton('Review later', async () => {
+      await updatePatternNote(note.id, current => ({ ...current, status: 'review' }));
+      showSaveBanner('Added to review');
+    }));
+    actions.appendChild(createPatternInspectorButton('Edit / all examples', () => {
+      chrome.runtime.openOptionsPage().catch(() => {});
+    }));
+    actions.appendChild(createPatternInspectorButton('Delete', async () => {
+      if (!confirm(`Delete pattern “${note.rawPattern || mark.dataset.pattern}”?`)) return;
+      patternNotes = patternNotes.filter(item => item.id !== note.id);
+      await chrome.storage.local.set({ [PATTERNS_KEY]: patternNotes });
+      closePatternInspector();
+      removeAllHighlights();
+      highlightSubtree();
+    }, 'danger'));
+    inspector.appendChild(actions);
+
+    document.body.appendChild(inspector);
+    const rect = mark.getBoundingClientRect();
+    const width = 330;
+    inspector.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+    inspector.style.top = `${Math.min(rect.bottom + 10, window.innerHeight - 410)}px`;
+  }
+
+  function setupPatternInspector() {
+    document.addEventListener('click', event => {
+      const mark = event.target.closest?.(`mark.${PATTERN_HIGHLIGHT_CLASS}`);
+      const inspector = document.getElementById(PATTERN_INSPECTOR_ID);
+      if (mark) {
+        event.preventDefault();
+        event.stopPropagation();
+        openPatternInspector(mark);
+      } else if (inspector && !inspector.contains(event.target)) {
+        closePatternInspector();
+      }
+    }, true);
+
+    document.addEventListener('keydown', event => {
+      const mark = event.target.closest?.(`mark.${PATTERN_HIGHLIGHT_CLASS}`);
+      if (mark && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        openPatternInspector(mark);
+      }
+      if (event.key === 'Escape') closePatternInspector();
+    });
   }
 
   // ─── MutationObserver ─────────────────────────────────────────────────────────
@@ -691,13 +1053,13 @@
       case 'VOCAB_UPDATED':
         vocabPattern = buildPattern(message.words || []);
         removeAllHighlights();
-        if (vocabPattern) highlightSubtree();
+        if (vocabPattern || patternMatchingEnabled()) highlightSubtree();
         break;
       case 'SETTINGS_UPDATED':
-        currentSettings = { ...currentSettings, ...message.settings };
+        currentSettings = mergeSettings({ ...currentSettings, ...message.settings });
         applyDynamicStyle(currentSettings);
         removeAllHighlights();
-        if (currentSettings.enabled && vocabPattern) highlightSubtree();
+        if (currentSettings.enabled && (vocabPattern || patternMatchingEnabled())) highlightSubtree();
         break;
     }
   });
@@ -705,20 +1067,27 @@
   // ─── Storage Change ───────────────────────────────────────────────────────────
 
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[PATTERNS_KEY]) {
+      patternNotes = changes[PATTERNS_KEY].newValue || [];
+      closePatternInspector();
+      removeAllHighlights();
+      if (currentSettings.enabled && (vocabPattern || patternMatchingEnabled())) highlightSubtree();
+      return;
+    }
     if (area !== 'sync') return;
 
     if (changes[STORAGE_KEY]) {
       const words  = changes[STORAGE_KEY].newValue || [];
       vocabPattern = buildPattern(words);
       removeAllHighlights();
-      if (currentSettings.enabled && vocabPattern) highlightSubtree();
+      if (currentSettings.enabled && (vocabPattern || patternMatchingEnabled())) highlightSubtree();
     }
 
     if (changes[SETTINGS_KEY]) {
-      currentSettings = { ...getDefaultSettings(), ...changes[SETTINGS_KEY].newValue };
+      currentSettings = mergeSettings(changes[SETTINGS_KEY].newValue);
       applyDynamicStyle(currentSettings);
       removeAllHighlights();
-      if (currentSettings.enabled && vocabPattern) highlightSubtree();
+      if (currentSettings.enabled && (vocabPattern || patternMatchingEnabled())) highlightSubtree();
     }
   });
 
@@ -726,19 +1095,40 @@
 
   async function init() {
     try {
-      const result    = await chrome.storage.sync.get([STORAGE_KEY, SETTINGS_KEY]);
-      const words     = result[STORAGE_KEY] || [];
-      currentSettings = { ...getDefaultSettings(), ...result[SETTINGS_KEY] };
+      // Migrate vocabMeanings from sync to local storage if present to avoid quota issues
+      try {
+        const syncMeaningsResult = await chrome.storage.sync.get(MEANINGS_KEY);
+        const syncMeanings = syncMeaningsResult[MEANINGS_KEY];
+        if (syncMeanings && Object.keys(syncMeanings).length > 0) {
+          const localMeaningsResult = await chrome.storage.local.get(MEANINGS_KEY);
+          const localMeanings = localMeaningsResult[MEANINGS_KEY] || {};
+          const mergedMeanings = { ...localMeanings, ...syncMeanings };
+          await chrome.storage.local.set({ [MEANINGS_KEY]: mergedMeanings });
+          await chrome.storage.sync.remove(MEANINGS_KEY);
+          console.log('[VocabHighlighter] Migrated vocabMeanings to local storage.');
+        }
+      } catch (migrationErr) {
+        console.warn('[VocabHighlighter] Migration error:', migrationErr);
+      }
+
+      const [syncResult, localResult] = await Promise.all([
+        chrome.storage.sync.get([STORAGE_KEY, SETTINGS_KEY]),
+        chrome.storage.local.get(PATTERNS_KEY),
+      ]);
+      const words     = syncResult[STORAGE_KEY] || [];
+      patternNotes    = localResult[PATTERNS_KEY] || [];
+      currentSettings = mergeSettings(syncResult[SETTINGS_KEY]);
 
       vocabPattern = buildPattern(words);
       applyDynamicStyle(currentSettings);
 
-      if (currentSettings.enabled && vocabPattern) highlightSubtree();
+      if (currentSettings.enabled && (vocabPattern || patternMatchingEnabled())) highlightSubtree();
 
       setupMutationObserver();
       setupTooltip();
       setupSelectionButton();
       setupMeaningPopup();
+      setupPatternInspector();
     } catch (err) {
       console.warn('[VocabHighlighter] Init error:', err);
     }

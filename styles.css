@@ -41,3 +41,86 @@ mark.vocab-highlight:hover {
   outline          : 2px solid #f59e0b;
   outline-offset   : 1px;
 }
+
+/* ── Pattern Highlight & Inspector ───────────────────────────────────────── */
+
+mark.vocab-pattern-highlight {
+  background-color: #fde047;
+  color: #1c1917;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+  outline: 1px solid rgba(146, 64, 14, 0.5);
+  outline-offset: 1px;
+}
+
+mark.vocab-pattern-highlight:hover,
+mark.vocab-pattern-highlight:focus {
+  background-color: #fbbf24;
+  outline: 2px solid #d97706;
+  outline-offset: 2px;
+}
+
+#vocab-pattern-inspector {
+  position: fixed;
+  z-index: 2147483647;
+  width: min(330px, calc(100vw - 16px));
+  max-height: min(410px, calc(100vh - 16px));
+  overflow: auto;
+  background: linear-gradient(135deg, #111827, #172554);
+  color: #e5e7eb;
+  border: 1px solid rgba(253,224,71,0.36);
+  border-radius: 12px;
+  box-shadow: 0 18px 46px rgba(0,0,0,0.44);
+  box-sizing: border-box;
+  padding: 16px;
+  font: 13px/1.45 system-ui, sans-serif;
+}
+
+.vocab-pattern-kicker { color: #94a3b8; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; margin: 10px 0 4px; }
+.vocab-pattern-kicker:first-of-type { margin-top: 0; }
+.vocab-pattern-name { color: #fde047; font: 600 15px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace; padding-right: 24px; }
+.vocab-pattern-found { background: rgba(255,255,255,.07); border-radius: 7px; color: #fff; padding: 8px 9px; font-style: italic; }
+.vocab-pattern-meaning { border-left: 3px solid #fde047; color: #f1f5f9; margin-top: 10px; padding: 5px 9px; white-space: pre-wrap; }
+.vocab-pattern-breakdown { display: grid; gap: 3px; list-style: none; margin: 0; padding: 0; }
+.vocab-pattern-breakdown li { color: #cbd5e1; }
+.vocab-pattern-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 13px; }
+.vocab-pattern-action { background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; color: #e5e7eb; cursor: pointer; font: 600 11px system-ui, sans-serif; padding: 6px 8px; }
+.vocab-pattern-action:hover { background: rgba(253,224,71,.16); border-color: rgba(253,224,71,.45); color: #fde047; }
+.vocab-pattern-action.danger { color: #fca5a5; }
+.vocab-pattern-action.icon { position: absolute; right: 8px; top: 8px; border: 0; font-size: 20px; line-height: 1; padding: 1px 6px; }
+
+/* Ensure list styles inside the tooltip and meaning popup are preserved */
+#vocab-hl-tooltip ol, #vocab-meaning-popup ol {
+  list-style-type: decimal !important;
+  margin: 4px 0 4px 20px !important;
+  padding: 0 !important;
+}
+#vocab-hl-tooltip ul, #vocab-meaning-popup ul {
+  list-style-type: disc !important;
+  margin: 4px 0 4px 20px !important;
+  padding: 0 !important;
+}
+#vocab-hl-tooltip li, #vocab-meaning-popup li {
+  display: list-item !important;
+  margin-bottom: 2px !important;
+}
+#vocab-hl-tooltip mark, #vocab-meaning-popup mark {
+  background-color: #fde047 !important;
+  color: #1c1917 !important;
+  font-weight: bold !important;
+  border-radius: 2px !important;
+  padding: 0 2px !important;
+}
+
+/* Contenteditable placeholder */
+#vocab-meaning-input:empty:before {
+  content: attr(placeholder);
+  color: #94a3b8;
+  opacity: 0.5;
+  pointer-events: none;
+  display: block;
+}

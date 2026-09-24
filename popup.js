@@ -55,8 +55,8 @@
 
     const query   = searchQuery.toLowerCase().trim();
     const visible = query
-      ? allWords.filter(w => w.includes(query))
-      : [...allWords];
+      ? allWords.filter(w => w.includes(query)).reverse()
+      : [...allWords].reverse();
 
     // Update count badge
     wordCountEl.textContent = `${allWords.length} word${allWords.length !== 1 ? 's' : ''}`;
@@ -121,7 +121,7 @@
       return;
     }
 
-    allWords = [...allWords, raw].sort(); // Keep sorted alphabetically
+    allWords = [...allWords, raw];
     await saveWords(allWords);
 
     manualInput.value = '';
@@ -218,9 +218,16 @@
 
   // ─── Settings Button ───────────────────────────────────────────────────────
   const settingsBtn = document.getElementById('settings-btn');
+  const patternsBtn = document.getElementById('patterns-btn');
   if (settingsBtn) {
     settingsBtn.addEventListener('click', () => {
       chrome.runtime.openOptionsPage();
+    });
+  }
+  if (patternsBtn) {
+    patternsBtn.addEventListener('click', async () => {
+      await chrome.tabs.create({ url: `${chrome.runtime.getURL('options.html')}#patterns` });
+      window.close();
     });
   }
 

@@ -25,6 +25,7 @@
       <nav>
         <button class="nav-btn active" data-tab="appearance">🎨 Appearance</button>
         <button class="nav-btn"        data-tab="behaviour" >⚙️ Behaviour</button>
+        <button class="nav-btn"        data-tab="patterns"  >Pattern Notes</button>
         <button class="nav-btn"        data-tab="backup"    >💾 Backup &amp; Restore</button>
         <button class="nav-btn"        data-tab="about"     >ℹ️ About</button>
       </nav>
@@ -87,7 +88,7 @@
           <label class="field-label">Tooltip Width</label>
           <p class="card-desc" style="margin-bottom:14px">Control how wide the IPA tooltip appears on hover.</p>
           <div class="slider-row">
-            <input type="range" id="tooltip-width" min="160" max="400" step="10" value="280" />
+            <input type="range" id="tooltip-width" min="160" max="800" step="10" value="280" />
             <span class="slider-value" id="tooltip-width-value">280px</span>
           </div>
           <div class="tooltip-preview-wrap">
@@ -146,6 +147,60 @@
         </div>
       </section>
 
+      <!-- ── Pattern Notes ───────────────────────────────── -->
+      <section id="tab-patterns" class="tab">
+        <h2>English Pattern Notes</h2>
+        <p class="section-desc">Save a grammatical chunk once; the local matcher finds its inflected forms and checks the complete structure on a page.</p>
+
+        <div class="card">
+          <h3 id="pattern-editor-title">Add a pattern</h3>
+          <p class="card-desc">Use <code>sb</code>, <code>sth</code>, <code>V</code>, <code>V-ing</code>, <code>adj</code>, <code>adv</code>, <code>place</code>, or <code>time</code> for slots.</p>
+          <form id="pattern-form" class="pattern-form">
+            <label class="field-label" for="pattern-raw-input">Pattern</label>
+            <input id="pattern-raw-input" class="pattern-input" type="text" maxlength="160" placeholder="teach sb how to V" autocomplete="off" spellcheck="false" required />
+            <label class="field-label" for="pattern-meaning-input">Meaning <span class="optional-label">optional</span></label>
+            <input id="pattern-meaning-input" class="pattern-input" type="text" maxlength="240" placeholder="dạy ai đó cách làm gì" autocomplete="off" />
+            <div id="pattern-normalized-preview" class="pattern-normalized-preview" aria-live="polite">Start typing to preview the normalized structure.</div>
+            <p id="pattern-form-feedback" class="import-feedback" aria-live="polite"></p>
+            <div class="pattern-editor-actions">
+              <button id="pattern-submit-btn" class="btn-primary" type="submit">Save pattern</button>
+              <button id="pattern-cancel-edit-btn" class="btn-secondary" type="button" hidden>Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Matching confidence</h3>
+          <p class="card-desc">Only matches at or above this score are highlighted. Lower-confidence candidates stay local and are not sent anywhere.</p>
+          <div class="switch-row">
+            <div>
+              <span class="switch-label">Enable pattern matching</span>
+              <span class="switch-desc">Keep vocabulary highlighting independent from pattern notes.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-pattern-matching" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="slider-row pattern-threshold-row">
+            <input type="range" id="pattern-threshold" min="70" max="100" step="1" value="85" aria-label="Pattern confidence threshold" />
+            <span class="slider-value" id="pattern-threshold-value">85%</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="pattern-list-heading">
+            <div>
+              <h3>Saved patterns</h3>
+              <p class="card-desc">Click Edit to change a note, or use its learning state while reviewing examples.</p>
+            </div>
+            <span id="pattern-count" class="pattern-count">0</span>
+          </div>
+          <ul id="pattern-list" class="pattern-list" aria-label="Saved English patterns"></ul>
+          <p id="pattern-empty-state" class="pattern-empty-state">No patterns yet. Try <code>teach sb how to V</code>.</p>
+        </div>
+      </section>
+
       <!-- ── Backup & Restore ───────────────────────────── -->
       <section id="tab-backup" class="tab">
         <h2>Backup &amp; Restore</h2>
@@ -161,11 +216,12 @@
           <p class="card-desc">Download your vocabulary as a plain-text file (one word per line).</p>
           <button id="export-txt-btn" class="btn-primary">⬇ Export as .txt</button>
           <button id="export-json-btn" class="btn-secondary">⬇ Export as .json</button>
+          <button id="export-patterns-json-btn" class="btn-secondary">Export pattern notes</button>
         </div>
 
         <div class="card">
           <h3>Import Words</h3>
-          <p class="card-desc">Import a <code>.txt</code> file (one word per line) or a <code>.json</code> array. Duplicate words are skipped automatically.</p>
+          <p class="card-desc">Import a <code>.txt</code> file (one word per line), a word <code>.json</code> array, or an exported pattern-notes JSON file. Duplicates are skipped automatically.</p>
           <label class="file-drop" id="drop-zone">
             <span class="drop-icon">📂</span>
             <span>Drop file here or <u>click to browse</u></span>
@@ -187,7 +243,7 @@
         <div class="card about-card">
           <div class="about-icon">📖</div>
           <h3>Vocab Highlighter</h3>
-          <p class="version">Version 2.0.0</p>
+          <p class="version">Version 5.0.0</p>
           <p class="about-desc">
             Highlight words you want to learn across every page you visit.
             Save words by right-clicking, or using the selection button that
@@ -210,6 +266,7 @@
     </main>
   </div>
 
+  <script src="pattern-engine.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
