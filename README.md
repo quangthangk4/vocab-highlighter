@@ -66,7 +66,7 @@ TEXT:
 "Dán đoạn tiếng Anh ở đây"
 ```
 
-Trong **Patterns** → **Paste JSON from chat**, dán cả JSON object hoặc JSON array rồi nhấn **Import JSON pattern**. Extension tự lưu pattern, meaning và example. Nếu chat trả về `something`, hãy đổi thành `sth` trước khi import.
+Trong **Patterns** → **Paste JSON from chat**, dán cả JSON object hoặc JSON array rồi nhấn **Check JSON**. Extension hiển thị preview pattern, meaning và example; kiểm tra xong, bạn tự nhấn **Add pattern(s)** để xác nhận lưu. Nếu chat trả về `something`, hãy đổi thành `sth` trước khi import.
 
 ### Chỉnh độ chính xác
 

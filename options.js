@@ -280,6 +280,55 @@
     patternJsonFeedback.className = `import-feedback ${type}`.trim();
   }
 
+  function clearJsonConfirmation({ keepInput = true, keepFeedback = false } = {}) {
+    pendingJsonPatternNotes = null;
+    patternJsonPreview.hidden = true;
+    patternJsonPreviewList.innerHTML = '';
+    if (!keepInput) patternJsonInput.value = '';
+    if (!keepFeedback) setPatternJsonFeedback();
+  }
+
+  function renderJsonConfirmation(notes) {
+    pendingJsonPatternNotes = notes;
+    patternJsonPreviewList.innerHTML = '';
+    patternJsonPreviewCount.textContent = String(notes.length);
+    patternJsonPreviewTitle.textContent = `JSON is valid — review ${notes.length} pattern${notes.length === 1 ? '' : 's'}`;
+    confirmPatternJsonBtn.textContent = `Add ${notes.length} pattern${notes.length === 1 ? '' : 's'}`;
+
+    for (const note of notes) {
+      const item = document.createElement('li');
+      item.className = 'pattern-json-preview-item';
+
+      const raw = document.createElement('code');
+      raw.textContent = note.rawPattern;
+      item.appendChild(raw);
+
+      if (note.meaning) {
+        const meaning = document.createElement('div');
+        meaning.className = 'pattern-json-preview-copy';
+        meaning.textContent = note.meaning;
+        item.appendChild(meaning);
+      }
+      const example = note.examples?.[0]?.text;
+      if (example) {
+        const exampleEl = document.createElement('div');
+        exampleEl.className = 'pattern-json-preview-copy';
+        exampleEl.textContent = `Example: ${example}`;
+        item.appendChild(exampleEl);
+      }
+
+      const existing = patternNotes.some(saved =>
+        saved.rawPattern.toLowerCase() === note.rawPattern.toLowerCase()
+      );
+      const state = document.createElement('div');
+      state.className = 'pattern-json-preview-state';
+      state.textContent = existing ? 'Existing note — missing details/examples will be merged.' : 'New pattern';
+      item.appendChild(state);
+      patternJsonPreviewList.appendChild(item);
+    }
+    patternJsonPreview.hidden = false;
+  }
+
   async function persistPatternNotes() {
     await chrome.storage.local.set({ [PATTERNS_KEY]: patternNotes });
   }
@@ -322,6 +371,46 @@
         ? { ...existing, meaning, examples, updatedAt: new Date().toISOString() }
         : existing,
     };
+  }
+
+  async function addConfirmedJsonPatterns(incomingNotes) {
+    let workingNotes = [...patternNotes];
+    let added = 0;
+    let updated = 0;
+    let unchanged = 0;
+    const usedIds = new Set(workingNotes.map(note => note.id));
+
+    for (const incoming of incomingNotes) {
+      const existingIndex = workingNotes.findIndex(note =>
+        note.rawPattern.toLowerCase() === incoming.rawPattern.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        const merged = mergeImportedPattern(workingNotes[existingIndex], incoming);
+        workingNotes[existingIndex] = merged.note;
+        if (merged.changed) updated += 1;
+        else unchanged += 1;
+        continue;
+      }
+
+      let note = incoming;
+      if (usedIds.has(note.id)) {
+        const recreated = window.VocabPatternEngine.createPatternNote(note.rawPattern, {
+          meaning: note.meaning,
+          status: note.status,
+          examples: note.examples,
+          createdAt: note.createdAt,
+        });
+        note = recreated.note;
+      }
+      usedIds.add(note.id);
+      workingNotes.push(note);
+      added += 1;
+    }
+
+    patternNotes = workingNotes;
+    if (added || updated) await persistPatternNotes();
+    renderPatternList();
+    return { added, updated, unchanged };
   }
 
   function renderPatternList() {
@@ -445,54 +534,30 @@
   });
 
   patternCancelEditBtn.addEventListener('click', () => setPatternEditor());
-  importPatternJsonBtn.addEventListener('click', async () => {
+  patternJsonInput.addEventListener('input', () => clearJsonConfirmation());
+  validatePatternJsonBtn.addEventListener('click', () => {
     const parsed = window.VocabPatternEngine?.createPatternNotesFromJson(patternJsonInput.value);
     if (!parsed?.ok) {
+      clearJsonConfirmation({ keepFeedback: true });
       setPatternJsonFeedback(parsed?.error || 'Pattern engine unavailable.', 'error');
       return;
     }
+    renderJsonConfirmation(parsed.notes);
+    setPatternJsonFeedback('JSON is valid. Review the preview, then add explicitly.', 'success');
+  });
 
-    let workingNotes = [...patternNotes];
-    let added = 0;
-    let updated = 0;
-    let unchanged = 0;
-    const usedIds = new Set(workingNotes.map(note => note.id));
-
-    for (const incoming of parsed.notes) {
-      const existingIndex = workingNotes.findIndex(note =>
-        note.rawPattern.toLowerCase() === incoming.rawPattern.toLowerCase()
-      );
-      if (existingIndex >= 0) {
-        const merged = mergeImportedPattern(workingNotes[existingIndex], incoming);
-        workingNotes[existingIndex] = merged.note;
-        if (merged.changed) updated += 1;
-        else unchanged += 1;
-        continue;
-      }
-
-      let note = incoming;
-      if (usedIds.has(note.id)) {
-        const recreated = window.VocabPatternEngine.createPatternNote(note.rawPattern, {
-          meaning: note.meaning,
-          status: note.status,
-          examples: note.examples,
-          createdAt: note.createdAt,
-        });
-        note = recreated.note;
-      }
-      usedIds.add(note.id);
-      workingNotes.push(note);
-      added += 1;
-    }
-
-    patternNotes = workingNotes;
-    if (added || updated) await persistPatternNotes();
-    renderPatternList();
-    patternJsonInput.value = '';
+  confirmPatternJsonBtn.addEventListener('click', async () => {
+    if (!pendingJsonPatternNotes?.length) return;
+    const { added, updated, unchanged } = await addConfirmedJsonPatterns(pendingJsonPatternNotes);
+    clearJsonConfirmation({ keepInput: false, keepFeedback: true });
     setPatternJsonFeedback(
-      `Imported ${added} new pattern(s)${updated ? `, updated ${updated}` : ''}${unchanged ? `, skipped ${unchanged} unchanged` : ''}.`,
+      `Added ${added} new pattern(s)${updated ? `, updated ${updated}` : ''}${unchanged ? `, skipped ${unchanged} unchanged` : ''}.`,
       'success'
     );
+  });
+  cancelPatternJsonBtn.addEventListener('click', () => {
+    clearJsonConfirmation();
+    patternJsonInput.focus();
   });
   patternMatchingToggle.addEventListener('change', () => {
     settings.patternMatching.enabled = patternMatchingToggle.checked;
